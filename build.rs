@@ -11,6 +11,8 @@ fn main() {
     let mut cmd = cc::Build::new();
 
     cmd.warnings(false)
+        .cpp(true)
+        .cpp_link_stdlib("stdc++")
         .include(olm_includes)
         .include(crypto_includes)
         .define("OLMLIB_VERSION_MAJOR", "1")
@@ -27,12 +29,23 @@ fn main() {
         .file("vendor/src/session.cpp")
         .file("vendor/src/utility.cpp")
         .file("vendor/src/pk.cpp")
+        .file("vendor/src/olm.cpp");
+
+    cmd.compile("olm++");
+
+    let mut cmd = cc::Build::new();
+
+    cmd.warnings(false)
+        .include(olm_includes)
+        .include(crypto_includes)
+        .define("OLMLIB_VERSION_MAJOR", "1")
+        .define("OLMLIB_VERSION_MINOR", "0")
+        .define("OLMLIB_VERSION_PATCH", "0")
         .file("vendor/src/sas.c")
         .file("vendor/src/ed25519.c")
         .file("vendor/src/error.c")
         .file("vendor/src/inbound_group_session.c")
         .file("vendor/src/megolm.c")
-        .file("vendor/src/olm.cpp")
         .file("vendor/src/outbound_group_session.c")
         .file("vendor/src/pickle_encoding.c")
         .file("vendor/lib/crypto-algorithms/aes.c")
