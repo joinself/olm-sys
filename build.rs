@@ -1,12 +1,141 @@
 extern crate bindgen;
 
 use std::env;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
 fn main() {
     let olm_includes = Path::new("vendor/include/");
     let crypto_includes = Path::new("vendor/lib/");
+
+    /* SELF SPECIFIC PATCHES */
+
+    // increase the maximum amount of one time keys
+    let account_header = std::fs::read_to_string("vendor/include/olm/account.hh").unwrap();
+    let mut updated_account_header = account_header.replace(
+        "const MAX_ONE_TIME_KEYS = 100;",
+        "const MAX_ONE_TIME_KEYS = 10000;",
+    );
+
+    // add function to allow importing key material into an olm account
+    if !account_header.contains("import_account") {
+        updated_account_header = updated_account_header.replace(
+            "std::size_t new_account_random_length() const;",
+            "std::size_t new_account_random_length() const;\n\n\tstd::size_t import_account(\n\t\tuint8_t const * ed25519_secret_key,\n\t\tuint8_t const * ed25519_public_key,\n\t\tuint8_t const * curve25519_secret_key,\n\t\tuint8_t const * curve25519_public_key\n\t);"
+        );
+    }
+
+    let mut account_header_file = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open("vendor/include/olm/account.hh")
+        .unwrap();
+
+    account_header_file
+        .write(updated_account_header.as_bytes())
+        .unwrap();
+
+    // add function to allow importing key material into an olm account
+    let olm_header = std::fs::read_to_string("vendor/include/olm/olm.h").unwrap();
+    if !olm_header.contains("olm_import_account") {
+        let updated_olm_header = olm_header.replace(
+            "OLM_EXPORT size_t olm_create_account(",
+            "OLM_EXPORT size_t olm_import_account(\n\tOlmAccount * account,\n\tvoid * ed25519_secret_key,\n\tvoid * ed25519_public_key,\n\tvoid * curve25519_secret_key,\n\tvoid * curve25519_public_key\n);\n\nOLM_EXPORT size_t olm_create_account(",
+        );
+
+        let mut olm_header_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/include/olm/olm.h")
+            .unwrap();
+
+        olm_header_file
+            .write(updated_olm_header.as_bytes())
+            .unwrap();
+    }
+
+    // add a function to allow importing key material into an olm account
+    let account_cpp = std::fs::read_to_string("vendor/src/account.cpp").unwrap();
+    if !account_cpp.contains("import_account") {
+        let updated_account_cpp = account_cpp.replace(
+            "std::size_t olm::Account::new_account(",
+            "std::size_t olm::Account::import_account(\n\tuint8_t const * ed25519_secret_key,\n\tuint8_t const * ed25519_public_key,\n\tuint8_t const * curve25519_secret_key,\n\tuint8_t const * curve25519_public_key\n) {\n\tvoid *ed25519_secret_key_converted = std::malloc(ED25519_PRIVATE_KEY_LENGTH);\n\n\t_olm_crypto_ed25519_ref10_to_nightcracker(\n\t\t((uint8_t *)ed25519_secret_key_converted),\n\t\ted25519_secret_key\n\t);\n\n\tstd::memcpy(\n\t\tidentity_keys.ed25519_key.private_key.private_key, ed25519_secret_key_converted,\n\t\tED25519_PRIVATE_KEY_LENGTH\n\t);\n\n\tstd::memcpy(\n\t\tidentity_keys.ed25519_key.public_key.public_key, ed25519_public_key,\n\t\tED25519_PUBLIC_KEY_LENGTH\n\t);\n\n\tstd::memcpy(\n\t\tidentity_keys.curve25519_key.private_key.private_key, curve25519_secret_key,\n\t\tCURVE25519_KEY_LENGTH\n\t);\n\n\tstd::memcpy(\n\t\tidentity_keys.curve25519_key.public_key.public_key, curve25519_public_key,\n\t\tCURVE25519_KEY_LENGTH\n\t);\n\n\treturn 0;\n}\n\nstd::size_t olm::Account::new_account("
+        );
+
+        let mut account_cpp_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/src/account.cpp")
+            .unwrap();
+
+        account_cpp_file
+            .write(updated_account_cpp.as_bytes())
+            .unwrap();
+    }
+
+    // add a function to allow importing key material into an olm account
+    let olm_cpp = std::fs::read_to_string("vendor/src/olm.cpp").unwrap();
+    if !olm_cpp.contains("olm_import_account") {
+        let updated_olm_cpp = olm_cpp.replace(
+            "size_t olm_create_account(",
+            "size_t olm_import_account(\n\tOlmAccount * account,\n\tvoid * ed25519_secret_key,\n\tvoid * ed25519_public_key,\n\tvoid * curve25519_secret_key,\n\tvoid * curve25519_public_key\n) {\n\tsize_t result = from_c(account)->import_account(\n\t\tfrom_c(ed25519_secret_key),\n\t\tfrom_c(ed25519_public_key),\n\t\tfrom_c(curve25519_secret_key),\n\t\tfrom_c(curve25519_public_key)\n\t);\n\treturn result;\n}\n\nsize_t olm_create_account("
+        );
+
+        let mut olm_cpp_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/src/olm.cpp")
+            .unwrap();
+
+        olm_cpp_file.write(updated_olm_cpp.as_bytes()).unwrap();
+    }
+
+    // add function for converting ref10 ed25519 keys to hashed representation used by the nightcracker implemetation
+    let crypto_header = std::fs::read_to_string("vendor/include/olm/crypto.h").unwrap();
+    if !crypto_header.contains("_olm_crypto_ed25519_ref10_to_nightcracker") {
+        let updated_crypto_header = crypto_header.replace(
+            "OLM_EXPORT int _olm_crypto_ed25519_verify(",
+            "OLM_EXPORT void _olm_crypto_ed25519_ref10_to_nightcracker(\n\tuint8_t *secret_key,\n\tconst uint8_t *ref10_secret_key\n);\n\nOLM_EXPORT int _olm_crypto_ed25519_verify("
+        );
+
+        let mut crypto_header_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/include/olm/crypto.h")
+            .unwrap();
+
+        crypto_header_file
+            .write(updated_crypto_header.as_bytes())
+            .unwrap();
+    }
+
+    // add function for converting ref10 ed25519 keys to hashed representation used by the nightcracker implemetation
+    let crypto_cpp = std::fs::read_to_string("vendor/src/crypto.cpp").unwrap();
+    if !crypto_cpp.contains("_olm_crypto_ed25519_ref10_to_nightcracker") {
+        let mut updated_crypto_cpp = crypto_cpp.replace(
+            "void _olm_crypto_curve25519_generate_key(",
+            "void _olm_crypto_ed25519_ref10_to_nightcracker(\n\tuint8_t *private_key,\n\tconst uint8_t *ref10_private_key\n) {\n\tsha512(ref10_private_key, 32, private_key);\n\tprivate_key[0] &= 248;\n\tprivate_key[31] &= 63;\n\tprivate_key[31] |= 64;\n}\n\nvoid _olm_crypto_curve25519_generate_key("
+        );
+
+        updated_crypto_cpp = updated_crypto_cpp.replace(
+            "#include \"ed25519/src/ed25519.h\"",
+            "#include \"ed25519/src/ed25519.h\"\n#include \"ed25519/src/sha512.h\"",
+        );
+
+        let mut crypto_cpp_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/src/crypto.cpp")
+            .unwrap();
+
+        crypto_cpp_file
+            .write(updated_crypto_cpp.as_bytes())
+            .unwrap();
+    }
+
+    // TODO get major, min and patch levels from vendor
 
     let mut cmd = cc::Build::new();
 
