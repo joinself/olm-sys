@@ -43,10 +43,11 @@ mod tests {
     #[test]
     fn import_account() {
         let signature: Box<[u8]> = vec![
-            10, 96, 85, 53, 167, 107, 127, 191, 158, 192, 147, 77, 148, 230, 252, 212, 213, 246,
-            236, 183, 31, 40, 149, 208, 216, 228, 52, 37, 119, 20, 173, 5, 189, 160, 48, 19, 119,
-            106, 169, 93, 126, 100, 176, 20, 11, 25, 55, 130, 126, 18, 228, 87, 23, 72, 9, 3, 109,
-            56, 14, 18, 47, 112, 66, 4,
+            67, 109, 66, 86, 78, 97, 100, 114, 102, 55, 43, 101, 119, 74, 78, 78, 108, 79, 98, 56,
+            49, 78, 88, 50, 55, 76, 99, 102, 75, 74, 88, 81, 50, 79, 81, 48, 74, 88, 99, 85, 114,
+            81, 87, 57, 111, 68, 65, 84, 100, 50, 113, 112, 88, 88, 53, 107, 115, 66, 81, 76, 71,
+            84, 101, 67, 102, 104, 76, 107, 86, 120, 100, 73, 67, 81, 78, 116, 79, 65, 52, 83, 76,
+            51, 66, 67, 66, 65,
         ]
         .into_boxed_slice();
 
@@ -107,9 +108,6 @@ mod tests {
 
             assert_eq!(status, olm_signature_len);
 
-            println!("--- SIGNATURE: {:?}", signature);
-            println!("OLM SIGNATURE: {:?}", olm_signature);
-
             let util_len = olm_utility_size() as usize;
             let util_buf = Box::into_raw(vec![0; util_len].into_boxed_slice());
             let util = olm_utility(util_buf as *mut libc::c_void);
@@ -122,11 +120,12 @@ mod tests {
                 encoded_public_key.len() as u64,
                 message.as_ptr() as *const libc::c_void,
                 message_len,
-                signature.as_ptr() as *mut libc::c_void,
-                signature.len() as u64,
+                olm_signature.as_ptr() as *mut libc::c_void,
+                olm_signature_len as u64,
             );
 
             assert_eq!(status, 0);
+            assert_eq!(signature, olm_signature);
         }
     }
 }

@@ -37,25 +37,6 @@ fn main() {
         .write(updated_account_header.as_bytes())
         .unwrap();
 
-    // add function to allow importing key material into an olm account
-    let olm_header = std::fs::read_to_string("vendor/include/olm/olm.h").unwrap();
-    if !olm_header.contains("olm_import_account") {
-        let updated_olm_header = olm_header.replace(
-            "OLM_EXPORT size_t olm_create_account(",
-            "OLM_EXPORT size_t olm_import_account(\n\tOlmAccount * account,\n\tvoid * ed25519_secret_key,\n\tvoid * ed25519_public_key,\n\tvoid * curve25519_secret_key,\n\tvoid * curve25519_public_key\n);\n\nOLM_EXPORT size_t olm_create_account(",
-        );
-
-        let mut olm_header_file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open("vendor/include/olm/olm.h")
-            .unwrap();
-
-        olm_header_file
-            .write(updated_olm_header.as_bytes())
-            .unwrap();
-    }
-
     // add a function to allow importing key material into an olm account
     let account_cpp = std::fs::read_to_string("vendor/src/account.cpp").unwrap();
     if !account_cpp.contains("import_account") {
@@ -72,6 +53,25 @@ fn main() {
 
         account_cpp_file
             .write(updated_account_cpp.as_bytes())
+            .unwrap();
+    }
+
+    // add function to allow importing key material into an olm account
+    let olm_header = std::fs::read_to_string("vendor/include/olm/olm.h").unwrap();
+    if !olm_header.contains("olm_import_account") {
+        let updated_olm_header = olm_header.replace(
+            "OLM_EXPORT size_t olm_create_account(",
+            "OLM_EXPORT size_t olm_import_account(\n\tOlmAccount * account,\n\tvoid * ed25519_secret_key,\n\tvoid * ed25519_public_key,\n\tvoid * curve25519_secret_key,\n\tvoid * curve25519_public_key\n);\n\nOLM_EXPORT size_t olm_create_account(",
+        );
+
+        let mut olm_header_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/include/olm/olm.h")
+            .unwrap();
+
+        olm_header_file
+            .write(updated_olm_header.as_bytes())
             .unwrap();
     }
 
@@ -93,11 +93,48 @@ fn main() {
     }
 
     // add function for converting ref10 ed25519 keys to hashed representation used by the nightcracker implemetation
+    let ed25519_header = std::fs::read_to_string("vendor/lib/ed25519/src/ed25519.h").unwrap();
+    if !ed25519_header.contains("_olm_crypto_ed25519_ref10_to_nightcracker") {
+        let updated_ed25519_header = ed25519_header.replace(
+            "void ED25519_DECLSPEC ed25519_key_exchange(unsigned char *shared_secret, const unsigned char *public_key, const unsigned char *private_key);",
+            "void ED25519_DECLSPEC ed25519_ref10_to_nightcracker(\n\tuint8_t *secret_key,\n\tconst uint8_t *ref10_secret_key\n);\n\nvoid ED25519_DECLSPEC ed25519_key_exchange(unsigned char *shared_secret, const unsigned char *public_key, const unsigned char *private_key);"
+        );
+
+        let mut ed25519_header_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/lib/ed25519/src/ed25519.h")
+            .unwrap();
+
+        ed25519_header_file
+            .write(updated_ed25519_header.as_bytes())
+            .unwrap();
+    }
+
+    // add function for converting ref10 ed25519 keys to hashed representation used by the nightcracker implemetation
+    let keypair_cpp = std::fs::read_to_string("vendor/lib/ed25519/src/keypair.c").unwrap();
+    if !keypair_cpp.contains("ed25519_ref10_to_nightcracker") {
+        let updated_keypair_cpp = keypair_cpp.replace(
+            "void ed25519_create_keypair(unsigned char *public_key, unsigned char *private_key, const unsigned char *seed) {",
+            "void ed25519_ref10_to_nightcracker(\n\tuint8_t *secret_key,\n\tconst uint8_t *ref10_secret_key\n) {\n\tsha512(ref10_secret_key, 32, secret_key);\n\tsecret_key[0] &= 248;\n\tsecret_key[31] &= 63;\n\tsecret_key[31] |= 64;\n}\n\nvoid ed25519_create_keypair(unsigned char *public_key, unsigned char *private_key, const unsigned char *seed) {"
+        );
+
+        let mut keypair_cpp_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .open("vendor/lib/ed25519/src/keypair.c")
+            .unwrap();
+
+        keypair_cpp_file
+            .write(updated_keypair_cpp.as_bytes())
+            .unwrap();
+    }
+
     let crypto_header = std::fs::read_to_string("vendor/include/olm/crypto.h").unwrap();
     if !crypto_header.contains("_olm_crypto_ed25519_ref10_to_nightcracker") {
         let updated_crypto_header = crypto_header.replace(
-            "OLM_EXPORT int _olm_crypto_ed25519_verify(",
-            "OLM_EXPORT void _olm_crypto_ed25519_ref10_to_nightcracker(\n\tuint8_t *secret_key,\n\tconst uint8_t *ref10_secret_key\n);\n\nOLM_EXPORT int _olm_crypto_ed25519_verify("
+            "OLM_EXPORT void _olm_crypto_ed25519_generate_key(",
+            "OLM_EXPORT void _olm_crypto_ed25519_ref10_to_nightcracker(\n\tuint8_t *secret_key,\n\tconst uint8_t *ref10_secret_key\n);\n\nOLM_EXPORT void _olm_crypto_ed25519_generate_key("
         );
 
         let mut crypto_header_file = OpenOptions::new()
@@ -111,17 +148,11 @@ fn main() {
             .unwrap();
     }
 
-    // add function for converting ref10 ed25519 keys to hashed representation used by the nightcracker implemetation
     let crypto_cpp = std::fs::read_to_string("vendor/src/crypto.cpp").unwrap();
     if !crypto_cpp.contains("_olm_crypto_ed25519_ref10_to_nightcracker") {
-        let mut updated_crypto_cpp = crypto_cpp.replace(
-            "void _olm_crypto_curve25519_generate_key(",
-            "void _olm_crypto_ed25519_ref10_to_nightcracker(\n\tuint8_t *private_key,\n\tconst uint8_t *ref10_private_key\n) {\n\tsha512(ref10_private_key, 32, private_key);\n\tprivate_key[0] &= 248;\n\tprivate_key[31] &= 63;\n\tprivate_key[31] |= 64;\n}\n\nvoid _olm_crypto_curve25519_generate_key("
-        );
-
-        updated_crypto_cpp = updated_crypto_cpp.replace(
-            "#include \"ed25519/src/ed25519.h\"",
-            "#include \"ed25519/src/ed25519.h\"\n#include \"ed25519/src/sha512.h\"",
+        let updated_crypto_cpp = crypto_cpp.replace(
+            "void _olm_crypto_ed25519_generate_key(",
+            "void _olm_crypto_ed25519_ref10_to_nightcracker(\n\tuint8_t *secret_key,\n\tconst uint8_t *ref10_secret_key\n) {\n\t::ed25519_ref10_to_nightcracker(\n\t\tsecret_key,\n\t\tref10_secret_key\n\t);\n}\n\nvoid _olm_crypto_ed25519_generate_key(",
         );
 
         let mut crypto_cpp_file = OpenOptions::new()
