@@ -13,16 +13,30 @@ mod tests {
     #[test]
     fn create_account() {
         unsafe {
-            let account_buf =
-                Box::into_raw(Box::new(vec![0 as u8; olm_account_size() as usize * 10]));
+            let account_len = olm_account_size() as usize;
+            let account_buf = Box::into_raw(vec![0; account_len].into_boxed_slice());
             let account = olm_account(account_buf as *mut libc::c_void);
 
             let seed_len = olm_create_account_random_length(account);
-            let seed = Box::into_raw(Box::new(vec![0 as u8; seed_len as usize]));
+            let mut seed = vec![0 as u8; (seed_len) as usize];
 
-            let status = olm_create_account(account, seed as *mut libc::c_void, seed_len);
-
+            let status =
+                olm_create_account(account, seed.as_mut_ptr() as *mut libc::c_void, seed_len);
             assert_eq!(status, 0);
+
+            let random_len =
+                olm_account_generate_one_time_keys_random_length(account, 100) as usize;
+            let mut random_buf = vec![0 as u8; random_len].into_boxed_slice();
+
+            let status = olm_account_generate_one_time_keys(
+                account,
+                100,
+                random_buf.as_mut_ptr() as *mut libc::c_void,
+                random_len as u64,
+            );
+            assert_eq!(status, 100);
+
+            drop(Box::from_raw(account_buf));
         }
     }
 }
