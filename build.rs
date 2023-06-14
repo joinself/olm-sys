@@ -230,6 +230,7 @@ fn main() {
         .allowlist_var(r"OLM.*")
         .header("vendor/include/olm/olm.h")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .size_t_is_usize(true)
         .generate()
         .expect("Unable to generate olm bindings");
 
